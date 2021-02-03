@@ -22,6 +22,8 @@ RUN apk add --no-cache \
       mediainfo \
       tinyxml2 && \
     rm -rf /var/tmp/* /var/cache/apk/* && \
+    # Fix mono-bug: https://gitlab.alpinelinux.org/alpine/aports/-/issues/12388
+    ln -s /usr/lib/libmono-native.so.0 /usr/lib/libmono-native.so && \
     cert-sync /etc/ssl/certs/ca-certificates.crt && \
     # Create the 'jackett' user and ensure it's part of group 'root'; ensure it owns '/config'
     addgroup -g ${GID} jackett && \
@@ -33,8 +35,7 @@ RUN apk add --no-cache \
 ADD --chown=${UID}:${GID} Jackett.Binaries.Mono.tar.gz /opt
 
 # Fix a weird bug
-RUN cp /usr/lib/mono/4.5/Facades/System.Runtime.InteropServices.RuntimeInformation.dll /opt/Jackett/ && \
-    ln -s /usr/lib/libmono-native.so.0 /usr/lib/libmono-native.so
+RUN cp /usr/lib/mono/4.5/Facades/System.Runtime.InteropServices.RuntimeInformation.dll /opt/Jackett/
 
 # Publish volumes, ports etc
 ENV XDG_CONFIG_HOME=/tmp
