@@ -3,7 +3,7 @@ set -e
 
 ALPINE_VERSION=3.12
 IMAGE_NAME=failfr8er/jackett
-JACKETT_RAW=$(curl -s https://api.github.com/repos/jackett/jackett/releases/latest)
+JACKETT_RAW=$(curl -H "Accept: application/vnd.github.v3+json" -s https://api.github.com/repos/jackett/jackett/releases/latest)
 JACKETT_VERSION=$(echo "${JACKETT_RAW}" | jq -r '.tag_name')
 JACKETT_ASSET=$(echo "${JACKETT_RAW}" | jq -r '.assets[] | select(.name == "Jackett.Binaries.Mono.tar.gz").browser_download_url')
 
