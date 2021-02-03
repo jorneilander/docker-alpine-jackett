@@ -22,6 +22,8 @@ RUN apk add --no-cache \
       mediainfo \
       tinyxml2 && \
     rm -rf /var/tmp/* /var/cache/apk/* && \
+    # Fix mono-bug: https://gitlab.alpinelinux.org/alpine/aports/-/issues/12388
+    ln -s /usr/lib/libmono-native.so.0 /usr/lib/libmono-native.so && \
     cert-sync /etc/ssl/certs/ca-certificates.crt && \
     # Create the 'jackett' user and ensure it's part of group 'root'; ensure it owns '/config'
     addgroup -g ${GID} jackett && \
