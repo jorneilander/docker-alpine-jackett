@@ -1,5 +1,27 @@
 # syntax =  docker/dockerfile:experimental
+
 ARG ALPINE_VERSION
+
+FROM --platform=${TARGETPLATFORM} alpine:${ALPINE_VERSION} AS BUILD
+
+ARG DOTNET_SDK_FILE
+ARG JACKETT_VERSION
+
+RUN apk add icu-libs krb5-libs libgcc libintl libssl1.1 libstdc++ zlib curl lttng-ust numactl zlib git && \
+    mkdir -p /opt/dotnet
+
+ADD ${DOTNET_SDK_FILE} /opt/dotnet
+ENV PATH=${PATH}:/opt/dotnet
+
+RUN git clone --depth 1 --branch ${JACKETT_VERSION} https://github.com/Jackett/Jackett.git
+
+WORKDIR /Jackett/src
+
+RUN dotnet publish "Jackett.Server" \
+    --configuration Release \
+    --runtime linux-musl-x64 \
+    --framework net5.0 \
+    /p:AssemblyVersion="${JACKETT_VERSION:1}" /p:FileVersion="${JACKETT_VERSION:1}" /p:InformationalVersion="${JACKETT_VERSION:1}" /p:Version="${JACKETT_VERSION:1}"
 
 FROM --platform=${TARGETPLATFORM} alpine:${ALPINE_VERSION}
 LABEL maintainer="Jorn Eilander <jorn.eilander@azorion.com>"
@@ -13,40 +35,31 @@ ARG GID=9117
 # Install required base packages and remove any cache
 RUN apk add --no-cache \
       tini \
-      ca-certificates && \
-    apk add --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing \
-      mono \
-      gosu \
-      curl && \
-    apk add --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/edge/community \
-      mediainfo \
-      tinyxml2 && \
+      icu-libs \
+      krb5-libs \
+      libgcc \
+      libintl \
+      libssl1.1 \
+      libstdc++ \
+      lttng-ust \
+      numactl \
+      zlib &&\
     rm -rf /var/tmp/* /var/cache/apk/* && \
-    # Fix mono-bug: https://gitlab.alpinelinux.org/alpine/aports/-/issues/12388
-    ln -s /usr/lib/libmono-native.so.0 /usr/lib/libmono-native.so && \
-    cert-sync /etc/ssl/certs/ca-certificates.crt && \
-    # Create the 'jackett' user and ensure it's part of group 'root'; ensure it owns '/config'
+    # Create the 'jackett' user and ensure it owns '/config'
     addgroup -g ${GID} jackett && \
     adduser -D -G jackett -s /bin/sh -u ${UID} jackett && \
     mkdir /config; chown -R ${UID}:${GID} /config && \
-    mkdir /media/downloads; chown -R ${UID}:${GID} /media/downloads && \
-    mkdir -p /tmp/.mono; chown -R ${UID}:${GID} /tmp/.mono
+    mkdir /media/downloads; chown -R ${UID}:${GID} /media/downloads
 
-ADD --chown=${UID}:${GID} Jackett.Binaries.Mono.tar.gz /opt
-
-# Fix a weird bug
-RUN cp /usr/lib/mono/4.5/Facades/System.Runtime.InteropServices.RuntimeInformation.dll /opt/Jackett/
+COPY --from=BUILD /Jackett/src/Jackett.Server/bin/Release/net5.0/linux-musl-x64 /opt/jackett
 
 # Publish volumes, ports etc
-ENV XDG_CONFIG_HOME=/tmp
-ENV XDG_CONFIG_DIR=/tmp
+ENV XDG_CONFIG_HOME="/config/xdg"
 VOLUME ["/config", "/media/downloads"]
 EXPOSE 9117
-USER 9117
+USER ${UID}
 WORKDIR /config
 
 # Define default start command
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["mono", "/opt/Jackett/JackettConsole.exe", "-d", "/config", "-l"]
-
-
+CMD ["/opt/jackett/jackett", "--DataFolder=/config", "--Logging", "--NoUpdates"]
